@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Hallucination Detector – Inline Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      /* Color palette (5 colors total):
+         - Primary brand: Blue (#2563eb)
+         - Neutrals: White (#ffffff), Gray-900 (#111827), Gray-200 (#e5e7eb)
+         - Accents: Green (#16a34a), Red (#dc2626)
+      */
+      --brand: #2563eb;
+      --text: #111827;
+      --bg: #ffffff;
+      --border: #e5e7eb;
+      --ok: #16a34a;
+      --bad: #dc2626;
+
+      --radius: 10px;
+      --gap: 12px;
+      --pad: 14px;
+      --maxw: 1000px;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      line-height: 1.5;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 16px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 5;
+      transition: box-shadow 180ms ease;
+      text-align: center; /* Center header content */
+    }
+    header.scrolled {
+      box-shadow: 0 2px 12px rgba(17, 24, 39, 0.06);
+    }
+
+    .wrap {
+      margin: 0 auto;
+      max-width: var(--maxw);
+      padding: 20px 16px 60px;
+      display: grid;
+      gap: 20px;
+    }
+
+    h1 { font-size: 22px; margin: 0; }
+    h2 {
+      font-size: 18px;
+      margin: 0 0 8px 0;
+      border-left: 4px solid var(--brand);
+      padding-left: 10px;
+    }
+    h3 { font-size: 16px; margin: 0 0 6px 0; }
+
+    .hint { color: #374151; font-size: 13px; }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--pad);
+      background: var(--bg);
+      transition: transform 180ms ease, box-shadow 200ms ease;
+      box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(37, 99, 235, 0.08);
+    }
+
+    .grid {
+      display: grid;
+      gap: 20px;
+    }
+    @media (min-width: 900px) {
+      .grid-2 {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+      }
+    }
+
+    label { display: inline-block; font-weight: 600; margin-bottom: 6px; }
+    textarea, input[type="text"], select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+      resize: vertical;
+      min-height: 90px;
+      background: #fff;
+    }
+
+    .row { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: center; }
+    .btn {
+      border: 1px solid var(--brand);
+      background: var(--brand);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 120ms ease, background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, border-color 160ms ease;
+      box-shadow: 0 1px 1px rgba(17, 24, 39, 0.04);
+    }
+    .btn:hover {
+      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.18);
+      filter: saturate(110%);
+    }
+    .btn:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12);
+    }
+    .btn.secondary {
+      background: transparent;
+      color: var(--brand);
+    }
+    .btn.secondary:hover {
+      background: rgba(37, 99, 235, 0.06);
+      border-color: var(--brand);
+      color: var(--brand);
+    }
+
+    .results {
+      display: grid;
+      gap: 16px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+
+    .match { background: rgba(22, 163, 74, 0.15); border-bottom: 2px solid var(--ok); }
+    .hallucinated { background: rgba(220, 38, 38, 0.12); border-bottom: 2px dashed var(--bad); }
+
+    .token {
+      padding: 0 2px;
+      border-radius: 4px;
+      margin: 0 1px;
+      display: inline-block;
+    }
+
+    .source, .hyp {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--pad);
+      min-height: 90px;
+      background: #fff;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .meta {
+      display: grid;
+      gap: 6px;
+      font-size: 14px;
+    }
+
+    /* Speedometer Gauge (SVG) */
+    .gauge {
+      width: 100%;
+      max-width: 420px;
+      margin: 0 auto;
+      position: relative;
+      filter: drop-shadow(0 2px 10px rgba(17, 24, 39, 0.06));
+    }
+    .gauge svg { display: block; width: 100%; height: auto; }
+
+    .needle {
+      transform-origin: 100px 100px; /* center bottom of semicircle */
+      transition: transform 700ms cubic-bezier(.22,.9,.2,1);
+    }
+
+    .ticks text {
+      font-size: 10px;
+      fill: #4b5563;
+    }
+
+    .legend {
+      text-align: center;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    /* Report + Leaderboard */
+    .reports {
+      display: grid;
+      gap: 16px;
+    }
+    .report-list {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--pad);
+      background: #fff;
+      max-height: 260px;
+      overflow: auto;
+    }
+    .report-item {
+      border-bottom: 1px dashed var(--border);
+      padding: 8px 0;
+      font-size: 14px;
+    }
+    .report-item:last-child { border-bottom: 0; }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .table th, .table td {
+      border: 1px solid var(--border);
+      padding: 8px;
+      text-align: left;
+    }
+    .table th {
+      background: #f9fafb;
+    }
+
+    .subtle {
+      color: #6b7280; font-size: 12px;
+    }
+
+    .kpis {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      align-items: stretch;
+    }
+    .kpi {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      min-width: 120px;
+      background: #fff;
+    }
+    .kpi .big {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--brand);
+    }
+
+    /* Reveal-on-scroll animations (accessible) */
+    .reveal { opacity: 0; transform: translateY(12px); }
+    .reveal.in { opacity: 1; transform: none; transition: opacity 500ms ease, transform 500ms ease; }
+
+    /* Prediction flash when updated */
+    .flash { animation: flash 600ms ease; }
+    @keyframes flash {
+      0% { background-color: rgba(37, 99, 235, 0.08); }
+      100% { background-color: transparent; }
+    }
+
+    /* Respect reduced motion preferences */
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap" style="padding:0;max-width:var(--maxw);">
+      <h1>Hallucination Detection Playground</h1>
+      <p class="hint">Interactive highlighting, confidence speedometer, reporting, and leaderboard — all in one HTML file.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Inputs -->
+    <section class="card reveal">
+      <!-- <h2>1) Enter Text</h2> -->
+      <div class="grid grid-2">
+        <div>
+          <!-- <label for="src">Source Text</label> -->
+          <textarea id="src" placeholder="Paste the ground-truth/source text here."></textarea>
+        </div>
+        <div>
+          <!-- <label for="hyp">Hypothesis</label> -->
+          <textarea id="hyp" placeholder="Paste the model output/hypothesis here."></textarea>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="analyzeBtn" class="btn">Analyze</button>
+        <button id="clearBtn" class="btn secondary" type="button">Clear</button>
+        <span id="status" class="hint" aria-live="polite"></span>
+      </div>
+      <p class="hint" style="margin-top:8px;">The analysis greedily highlights longest matching phrases from the hypothesis that appear in the source (green). Non-matching tokens are flagged as hallucinations (red).</p>
+    </section>
+
+    <!-- Results -->
+    <section class="card reveal">
+      <!-- <h2>2) Results</h2> -->
+      <div class="results">
+        <div class="kpis" role="group" aria-label="Summary">
+          <div class="kpi reveal">
+            <!-- <div class="subtle">Prediction</div> -->
+            <div id="prediction" class="big">–</div>
+          </div>
+          <div class="kpi reveal">
+            <!-- <div class="subtle">Confidence</div> -->
+            <div id="probText" class="big">0.000</div>
+            <!-- <div class="subtle">Similarity-based</div> -->
+          </div>
+          <div class="kpi reveal">
+            <!-- <div class="subtle">Matched Tokens</div> -->
+            <div id="matchCount" class="big">0</div>
+          </div>
+          <div class="kpi reveal">
+            <!-- <div class="subtle">Hallucinated Tokens</div> -->
+            <div id="hallCount" class="big">0</div>
+          </div>
+        </div>
+
+        <!-- Speedometer Gauge -->
+        <div class="gauge reveal" role="img" aria-label="Confidence gauge">
+          <svg viewBox="0 0 200 120" aria-hidden="true">
+            <!-- Background arc (light) -->
+            <path d="M 10 100 A 90 90 0 0 1 190 100" fill="none" stroke="#e5e7eb" stroke-width="16" />
+
+            <!-- Colored segments (Low=red, Mid=brand, High=green) -->
+            <path d="M 10 100 A 90 90 0 0 1 70 30" fill="none" stroke="#dc2626" stroke-width="12" />
+            <path d="M 70 30 A 90 90 0 0 1 130 30" fill="none" stroke="#2563eb" stroke-width="12" />
+            <path d="M 130 30 A 90 90 0 0 1 190 100" fill="none" stroke="#16a34a" stroke-width="12" />
+
+            <!-- Ticks -->
+            <g class="ticks">
+              <!-- 0%, 25%, 50%, 75%, 100% ticks -->
+              <line x1="10" y1="100" x2="18" y2="100" stroke="#9ca3af" stroke-width="2"/>
+              <line x1="55" y1="47" x2="61" y2="53" stroke="#9ca3af" stroke-width="2"/>
+              <line x1="100" y1="28" x2="100" y2="36" stroke="#9ca3af" stroke-width="2"/>
+              <line x1="145" y1="47" x2="139" y2="53" stroke="#9ca3af" stroke-width="2"/>
+              <line x1="190" y1="100" x2="182" y2="100" stroke="#9ca3af" stroke-width="2"/>
+
+              <text x="18" y="112">Low</text>
+              <text x="92" y="18">Med</text>
+              <text x="168" y="112">High</text>
+            </g>
+
+            <!-- Needle -->
+            <g id="needle" class="needle" transform="rotate(-90 100 100)">
+              <line x1="100" y1="100" x2="100" y2="24" stroke="#111827" stroke-width="3" />
+              <circle cx="100" cy="100" r="5" fill="#111827" />
+            </g>
+          </svg>
+          <div id="gaugeLegend" class="legend">Confidence: 0%</div>
+        </div>
+
+        <div class="grid grid-2">
+          <div>
+            <!-- <h3>Source</h3> -->
+            <div id="sourceView" class="source" aria-live="polite">–</div>
+          </div>
+          <div>
+            <!-- <h3>Hypothesis with Highlighting</h3> -->
+            <div id="hypView" class="hyp" aria-live="polite">–</div>
+            <div class="row" style="margin-top:8px;">
+              <span class="pill" title="Matching span in source"><span style="width:10px;height:10px;background:var(--ok);display:inline-block;border-radius:2px;"></span> Match</span>
+              <span class="pill" title="Not found in source"><span style="width:10px;height:10px;background:var(--bad);display:inline-block;border-radius:2px;"></span> Hallucination</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reporting -->
+    <section class="card reveal">
+      <!-- <h2>3) Report an Issue</h2> -->
+      <div class="reports">
+        <div class="grid grid-2">
+          <form id="reportForm" class="card" style="padding:12px;background:#f9fafb;">
+            <div class="row" style="gap:10px;">
+              <div style="flex:1;min-width:200px;">
+                <!-- <label for="reporter">Your Name (for leaderboard)</label> -->
+                <input id="reporter" type="text" placeholder="e.g., Alex Kim" required />
+              </div>
+              <div style="flex:1;min-width:200px;">
+                <!-- <label for="email">Email (optional)</label> -->
+                <input id="email" type="text" placeholder="you@example.com" />
+              </div>
+            </div>
+
+            <div class="row" style="gap:10px; margin-top:10px;">
+              <div style="flex:1;min-width:200px;">
+                <!-- <label for="issueType">Issue Type</label> -->
+                <select id="issueType">
+                  <option>False Positive</option>
+                  <option>False Negative</option>
+                  <option>Incorrect Highlighting</option>
+                  <option>Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-top:10px;">
+              <!-- <label for="comments">Comments</label> -->
+              <textarea id="comments" placeholder="Explain what went wrong..."></textarea>
+            </div>
+
+            <div class="row" style="margin-top:10px;">
+              <label style="display:flex;align-items:center;gap:8px;">
+                <input id="includeSnapshot" type="checkbox" checked />
+                Include current analysis snapshot
+              </label>
+            </div>
+
+            <div class="row" style="margin-top:12px;">
+              <button class="btn" type="submit">Submit Report</button>
+              <span id="reportStatus" class="hint" aria-live="polite"></span>
+            </div>
+          </form>
+
+          <div>
+            <!-- <h3>Recent Reports</h3> -->
+            <div id="reportList" class="report-list" aria-live="polite">No reports yet.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Leaderboard -->
+    <section class="card reveal">
+      <!-- <h2>4) Leaderboard</h2> -->
+      <p class="hint">Points = 10 × number of submitted reports. Ties are broken by earliest submission.</p>
+      <div class="row" style="margin-bottom:8px;">
+        <button id="seedBtn" class="btn secondary" type="button">Seed Demo Data</button>
+        <button id="clearReportsBtn" class="btn secondary" type="button">Clear All Reports</button>
+      </div>
+      <div class="table-wrap">
+        <table class="table" aria-label="Leaderboard">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Reporter</th>
+              <th>Reports</th>
+              <th>Points</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody">
+            <tr><td colspan="4">No data yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Utility: tokenize into words and punctuation
+    function tokenize(text) {
+      // Captures words (including apostrophes) or individual non-space punctuation
+      const raw = (text || '').match(/[A-Za-z0-9']+|[^\sA-Za-z0-9']/g) || [];
+      return raw.map(tok => {
+        const isWord = /[A-Za-z0-9']+/.test(tok);
+        return { tok, isWord };
+      });
+    }
+
+    // Normalize: lowercase, keep only words, join with single spaces
+    function normalizeForMatch(text) {
+      const words = (text || '').toLowerCase().match(/[a-z0-9']+/g) || [];
+      return words.join(' ');
+    }
+
+    // Build a normalized string from a token slice [i, j)
+    function phraseFromTokens(tokens, i, j) {
+      const words = [];
+      for (let k = i; k < j; k++) {
+        if (tokens[k].isWord) words.push(tokens[k].tok.toLowerCase());
+      }
+      return words.join(' ');
+    }
+
+    // Greedy longest-phrase matching from hypothesis into source
+    function explainHighlight(hyp, source) {
+      const srcNorm = normalizeForMatch(source);
+      const tokens = tokenize(hyp);
+      const segments = []; // { text, className?: 'match'|'hallucinated' }
+      let i = 0;
+      let matchedCount = 0;
+      let hallucinatedCount = 0;
+
+      while (i < tokens.length) {
+        // Skip punctuation: output as-is (neutral)
+        if (!tokens[i].isWord) {
+          segments.push({ text: tokens[i].tok });
+          i++;
+          continue;
+        }
+
+        // Try to find the longest j > i with phrase included in source
+        let bestLen = 0;
+        let bestJ = i + 1;
+
+        // Limit search window to keep performance on long strings
+        const MAX_WINDOW = 12; // up to 12-word phrase
+        for (let j = i + 1; j <= Math.min(tokens.length, i + 1 + MAX_WINDOW); j++) {
+          const phrase = phraseFromTokens(tokens, i, j);
+          if (!phrase) break; // if no words in window
+          if (srcNorm.includes(phrase)) {
+            const len = j - i;
+            if (len > bestLen) { bestLen = len; bestJ = j; }
+          } else {
+            // If current extension doesn't match, we still try further only if it was punctuation,
+            // but since we skip punctuation in phrase builder, a non-match means further extension won't match.
+            // Break to keep it greedy.
+            break;
+          }
+        }
+
+        if (bestLen > 0) {
+          // Emit all tokens i..bestJ-1 as MATCH (include punctuation in between as neutral tokens)
+          for (let k = i; k < bestJ; k++) {
+            if (tokens[k].isWord) {
+              segments.push({ text: tokens[k].tok, className: 'match' });
+              matchedCount++;
+            } else {
+              segments.push({ text: tokens[k].tok });
+            }
+          }
+          i = bestJ;
+        } else {
+          // Single token is hallucinated
+          segments.push({ text: tokens[i].tok, className: tokens[i].isWord ? 'hallucinated' : undefined });
+          if (tokens[i].isWord) hallucinatedCount++;
+          i++;
+        }
+      }
+
+      return { segments, matchedCount, hallucinatedCount, totalWords: matchedCount + hallucinatedCount };
+    }
+
+    function renderSegments(segments) {
+      return segments.map(seg => {
+        if (!seg.className) return seg.text;
+        return '<span class="token ' + seg.className + '">' + escapeHtml(seg.text) + '</span>';
+      }).join('');
+    }
+
+    function escapeHtml(str) {
+      return (str + '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    // Confidence gauge: angle from -90 deg (0) to +90 deg (1)
+    function setGauge(prob) {
+      const clamp = Math.max(0, Math.min(1, prob || 0));
+      const angle = -90 + clamp * 180;
+      const needle = document.getElementById('needle');
+      needle.style.transform = 'rotate(' + angle + 'deg)';
+      document.getElementById('gaugeLegend').textContent = 'Confidence: ' + Math.round(clamp * 100) + '%';
+      document.querySelector('.gauge').setAttribute('aria-label', 'Confidence gauge at ' + Math.round(clamp * 100) + ' percent');
+      document.getElementById('probText').textContent = clamp.toFixed(3);
+    }
+
+    function predictLabel(prob) {
+      if (prob >= 0.7) return 'Grounded';
+      if (prob >= 0.4) return 'Uncertain';
+      return 'Possible Hallucination';
+    }
+
+    // Reports persistence
+    const STORAGE_KEY = 'hallucination_reports_v1';
+
+    function loadReports() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      } catch {
+        return [];
+      }
+    }
+    function saveReports(reports) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+    }
+
+    function renderReportList() {
+      const list = document.getElementById('reportList');
+      const reports = loadReports().sort((a, b) => b.createdAt - a.createdAt);
+      if (!reports.length) {
+        list.textContent = 'No reports yet.';
+        return;
+      }
+      list.innerHTML = reports.map(r => {
+        const when = new Date(r.createdAt).toLocaleString();
+        const snap = r.snapshot ? '<div class="subtle">Snapshot: pred='+escapeHtml(r.snapshot.prediction)+', conf='+Number(r.snapshot.confidence).toFixed(3)+', matched='+r.snapshot.matched+', hallucinated='+r.snapshot.hallucinated+'</div>' : '';
+        return '<div class="report-item">' +
+          '<div><strong>' + escapeHtml(r.reporter) + '</strong> • ' + escapeHtml(r.issueType) + ' • <span class="subtle">' + when + '</span></div>' +
+          (r.email ? '<div class="subtle">' + escapeHtml(r.email) + '</div>' : '') +
+          (r.comments ? '<div>' + escapeHtml(r.comments) + '</div>' : '') +
+          snap +
+        '</div>';
+      }).join('');
+    }
+
+    function renderLeaderboard() {
+      const tbody = document.getElementById('leaderboardBody');
+      const reports = loadReports();
+      if (!reports.length) {
+        tbody.innerHTML = '<tr><td colspan="4">No data yet.</td></tr>';
+        return;
+      }
+      const counts = new Map();
+      const firstTime = new Map();
+      for (const r of reports) {
+        const name = r.reporter || 'Anonymous';
+        counts.set(name, (counts.get(name) || 0) + 1);
+        if (!firstTime.has(name)) firstTime.set(name, r.createdAt);
+      }
+      const rows = Array.from(counts.entries()).map(([name, count]) => {
+        return { name, count, points: count * 10, firstAt: firstTime.get(name) || 0 };
+      }).sort((a, b) => b.points - a.points || a.firstAt - b.firstAt);
+
+      tbody.innerHTML = rows.map((row, idx) => (
+        '<tr>' +
+          '<td>' + (idx + 1) + '</td>' +
+          '<td>' + escapeHtml(row.name) + '</td>' +
+          '<td>' + row.count + '</td>' +
+          '<td>' + row.points + '</td>' +
+        '</tr>'
+      )).join('');
+    }
+
+    /* Animated counters + prediction flash for a more dynamic, professional feel */
+    function animateCounter(id, from, to, duration) {
+      const el = document.getElementById(id);
+      const start = performance.now();
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / (duration || 500));
+        const val = Math.round(from + (to - from) * t);
+        el.textContent = String(val);
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+    function updateTextWithFlash(id, text) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.classList.remove('flash');
+      // force reflow to restart animation
+      void el.offsetWidth;
+      el.classList.add('flash');
+    }
+
+    // Analyze flow
+    function analyze() {
+      const src = document.getElementById('src').value.trim();
+      const hyp = document.getElementById('hyp').value.trim();
+      const status = document.getElementById('status');
+
+      if (!src || !hyp) {
+        status.textContent = 'Please provide both Source and Hypothesis.';
+        return;
+      }
+      status.textContent = 'Analyzing…';
+
+      // Highlighting
+      const { segments, matchedCount, hallucinatedCount, totalWords } = explainHighlight(hyp, src);
+      const confidence = totalWords > 0 ? (matchedCount / totalWords) : 0;
+      const label = predictLabel(confidence);
+
+      // Render views
+      document.getElementById('sourceView').textContent = src || '–';
+      document.getElementById('hypView').innerHTML = segments.length ? renderSegments(segments) : '–';
+
+      // KPIs
+      // document.getElementById('prediction').textContent = label;
+      updateTextWithFlash('prediction', label);
+
+      // Smoothly animate counts for a polished UX
+      const prevMatch = parseInt(document.getElementById('matchCount').textContent || '0', 10);
+      const prevHall = parseInt(document.getElementById('hallCount').textContent || '0', 10);
+      animateCounter('matchCount', isNaN(prevMatch) ? 0 : prevMatch, matchedCount, 500);
+      animateCounter('hallCount', isNaN(prevHall) ? 0 : prevHall, hallucinatedCount, 500);
+
+      // Gauge + confidence text (gauge transition handled by CSS)
+      setGauge(confidence);
+
+      status.textContent = 'Done.';
+      return { confidence, label, matchedCount, hallucinatedCount };
+    }
+
+    /* Header shadow on scroll + reveal-on-scroll animations */
+    function initHeaderScrollShadow() {
+      const hdr = document.querySelector('header');
+      const apply = () => {
+        if (window.scrollY > 4) hdr.classList.add('scrolled');
+        else hdr.classList.remove('scrolled');
+      };
+      apply();
+      window.addEventListener('scroll', apply, { passive: true });
+    }
+
+    function initRevealOnScroll() {
+      const toReveal = document.querySelectorAll('.reveal');
+      if (!toReveal.length) return;
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add('in');
+            io.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.15 });
+      toReveal.forEach(el => io.observe(el));
+    }
+
+    // Event bindings
+    document.getElementById('analyzeBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      analyze();
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      document.getElementById('src').value = '';
+      document.getElementById('hyp').value = '';
+      document.getElementById('sourceView').textContent = '–';
+      document.getElementById('hypView').textContent = '–';
+      document.getElementById('prediction').textContent = '–';
+      document.getElementById('probText').textContent = '0.000';
+      setGauge(0);
+      document.getElementById('matchCount').textContent = '0';
+      document.getElementById('hallCount').textContent = '0';
+      document.getElementById('status').textContent = '';
+    });
+
+    // Report form
+    document.getElementById('reportForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const reporter = document.getElementById('reporter').value.trim() || 'Anonymous';
+      const email = document.getElementById('email').value.trim();
+      const issueType = document.getElementById('issueType').value;
+      const comments = document.getElementById('comments').value.trim();
+      const includeSnapshot = document.getElementById('includeSnapshot').checked;
+
+      // Build snapshot from current analysis
+      let snapshot = null;
+      if (includeSnapshot) {
+        const pred = document.getElementById('prediction').textContent || '–';
+        const conf = parseFloat(document.getElementById('probText').textContent) || 0;
+        const matched = parseInt(document.getElementById('matchCount').textContent || '0', 10);
+        const hall = parseInt(document.getElementById('hallCount').textContent || '0', 10);
+        snapshot = { prediction: pred, confidence: conf, matched, hallucinated: hall };
+      }
+
+      const entry = {
+        reporter, email, issueType, comments,
+        createdAt: Date.now(),
+        snapshot
+      };
+
+      const reports = loadReports();
+      reports.push(entry);
+      saveReports(reports);
+      renderReportList();
+      renderLeaderboard();
+
+      document.getElementById('reportStatus').textContent = 'Report submitted. Thank you!';
+      (e.target).reset();
+      document.getElementById('includeSnapshot').checked = true;
+      setTimeout(() => { document.getElementById('reportStatus').textContent = ''; }, 2000);
+    });
+
+    document.getElementById('clearReportsBtn').addEventListener('click', () => {
+      if (!confirm('Clear all reports?')) return;
+      saveReports([]);
+      renderReportList();
+      renderLeaderboard();
+    });
+
+    document.getElementById('seedBtn').addEventListener('click', () => {
+      const now = Date.now();
+      const seed = [
+        { reporter: 'Alex Kim', email:'', issueType:'Incorrect Highlighting', comments:'Span merged across sentences.', createdAt: now-500000, snapshot:{prediction:'Uncertain', confidence:0.530, matched:45, hallucinated:40} },
+        { reporter: 'Riya Singh', email:'', issueType:'False Positive', comments:'Everything is present in source.', createdAt: now-400000, snapshot:{prediction:'Possible Hallucination', confidence:0.320, matched:20, hallucinated:42} },
+        { reporter: 'Alex Kim', email:'', issueType:'Other', comments:'Edge punctuation handling.', createdAt: now-300000, snapshot:{prediction:'Grounded', confidence:0.770, matched:61, hallucinated:18} },
+        { reporter: 'Sam Wu', email:'', issueType:'False Negative', comments:'Paraphrase not detected.', createdAt: now-200000, snapshot:{prediction:'Uncertain', confidence:0.480, matched:33, hallucinated:36} },
+        { reporter: 'Riya Singh', email:'', issueType:'Incorrect Highlighting', comments:'Hyphenated words missed.', createdAt: now-100000, snapshot:{prediction:'Possible Hallucination', confidence:0.390, matched:19, hallucinated:30} },
+      ];
+      const curr = loadReports();
+      saveReports(curr.concat(seed));
+      renderReportList();
+      renderLeaderboard();
+    });
+
+    // Initial render
+    setGauge(0);
+    renderReportList();
+    renderLeaderboard();
+    initHeaderScrollShadow();
+    initRevealOnScroll();
+  </script>
+</body>
+</html>
